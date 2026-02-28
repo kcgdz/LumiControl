@@ -45,7 +45,7 @@ Developed by [kcgdz](https://github.com/kcgdz)
 
 ### Build from Source
 ```bash
-git clone https://github.com/your-username/LumiControl.git
+git clone https://github.com/kcgdz/LumiControl.git
 cd LumiControl
 dotnet restore
 dotnet build
