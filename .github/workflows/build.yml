@@ -1,0 +1,77 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+
+    - name: Publish self-contained EXE
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        dotnet publish LumiControl/LumiControl.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/self-contained
+
+    - name: Publish portable
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        dotnet publish LumiControl/LumiControl.csproj -c Release -r win-x64 --self-contained false -o publish/portable
+
+    - name: Create portable ZIP
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        Compress-Archive -Path publish/portable/* -DestinationPath publish/LumiControl-portable.zip
+
+    - name: Upload build artifacts
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-artifacts
+        path: |
+          publish/self-contained/LumiControl.exe
+          publish/LumiControl-portable.zip
+
+  release:
+    needs: build
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: release-artifacts
+        path: release
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: true
+        files: |
+          release/self-contained/LumiControl.exe
+          release/LumiControl-portable.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
